@@ -88,12 +88,7 @@ export default function ComparisonSection() {
 
         {/* Comparison Cards */}
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "60px",
-          }}
-          className="comparison-grid"
+          className="comparison-grid grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12"
         >
           {/* Left Card — Traditional */}
           <motion.div
