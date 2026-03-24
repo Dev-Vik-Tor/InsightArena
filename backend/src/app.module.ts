@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { validate } from './config/env.validation';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { validate } from './config/env.validation';
     }),
 
     HealthModule,
+    AuthModule,
     CommonModule,
   ],
 
