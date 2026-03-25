@@ -9,12 +9,21 @@ use crate::errors::InsightArenaError;
 /// until the market is resolved (payout) or cancelled (refund).
 ///
 /// # Errors
-/// Propagates any error returned by [`config::get_config`].  Token transfer
-/// panics are handled by the Soroban runtime and surface as contract failures.
-pub fn lock_stake(env: &Env, predictor: &Address, amount: i128) -> Result<(), InsightArenaError> {
+/// - `InvalidInput` when `amount <= 0`.
+/// - Propagates any error returned by [`config::get_config`].
+///
+/// Token transfer panics are handled by the Soroban runtime and surface as
+/// contract failures.
+pub fn lock_stake(env: &Env, from: &Address, amount: i128) -> Result<(), InsightArenaError> {
+    if amount <= 0 {
+        return Err(InsightArenaError::InvalidInput);
+    }
+
+    from.require_auth();
+
     let cfg = config::get_config(env)?;
     token::Client::new(env, &cfg.xlm_token).transfer(
-        predictor,
+        from,
         &env.current_contract_address(),
         &amount,
     );
@@ -55,4 +64,98 @@ pub fn release_payout(
         &amount,
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod escrow_tests {
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
+    use soroban_sdk::{Address, Env};
+
+    use crate::{InsightArenaContract, InsightArenaContractClient, InsightArenaError};
+
+    use super::lock_stake;
+
+    fn register_token(env: &Env) -> Address {
+        let token_admin = Address::generate(env);
+        env.register_stellar_asset_contract_v2(token_admin)
+            .address()
+    }
+
+    fn deploy<'a>(env: &'a Env, xlm_token: &Address) -> InsightArenaContractClient<'a> {
+        let id = env.register(InsightArenaContract, ());
+        let client = InsightArenaContractClient::new(env, &id);
+        let admin = Address::generate(env);
+        let oracle = Address::generate(env);
+        client.initialize(&admin, &oracle, &200_u32, xlm_token);
+        client
+    }
+
+    fn fund(env: &Env, xlm_token: &Address, recipient: &Address, amount: i128) {
+        StellarAssetClient::new(env, xlm_token).mint(recipient, &amount);
+    }
+
+    #[test]
+    fn test_lock_stake_happy_path() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let xlm_token = register_token(&env);
+        let client = deploy(&env, &xlm_token);
+        let predictor = Address::generate(&env);
+        let amount = 20_000_000_i128;
+
+        fund(&env, &xlm_token, &predictor, amount);
+
+        let token = TokenClient::new(&env, &xlm_token);
+        assert_eq!(token.balance(&predictor), amount);
+        assert_eq!(token.balance(&client.address), 0);
+
+        let result = env.as_contract(&client.address, || lock_stake(&env, &predictor, amount));
+        assert_eq!(result, Ok(()));
+
+        assert_eq!(token.balance(&predictor), 0);
+        assert_eq!(token.balance(&client.address), amount);
+    }
+
+    #[test]
+    fn test_lock_stake_zero_amount() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let xlm_token = register_token(&env);
+        let client = deploy(&env, &xlm_token);
+        let predictor = Address::generate(&env);
+
+        let result = env.as_contract(&client.address, || lock_stake(&env, &predictor, 0));
+        assert_eq!(result, Err(InsightArenaError::InvalidInput));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_lock_stake_unauthorized() {
+        let env = Env::default();
+        let xlm_token = register_token(&env);
+        let client = deploy(&env, &xlm_token);
+        let predictor = Address::generate(&env);
+        let amount = 10_000_000_i128;
+
+        fund(&env, &xlm_token, &predictor, amount);
+
+        env.as_contract(&client.address, || {
+            let _ = lock_stake(&env, &predictor, amount);
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_lock_stake_insufficient_user_funds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let xlm_token = register_token(&env);
+        let client = deploy(&env, &xlm_token);
+        let predictor = Address::generate(&env);
+
+        env.as_contract(&client.address, || {
+            let _ = lock_stake(&env, &predictor, 10_000_000_i128);
+        });
+    }
 }

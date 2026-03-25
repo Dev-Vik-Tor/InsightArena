@@ -161,13 +161,12 @@ fn update_winner_profile(
 ///
 /// Validation order:
 /// 1. Platform not paused
-/// 2. Predictor authorisation via `require_auth()`
-/// 3. Market exists (else `MarketNotFound`)
-/// 4. `current_time < market.end_time` (else `MarketExpired`)
-/// 5. `chosen_outcome` is present in `market.outcome_options` (else `InvalidOutcome`)
-/// 6. `stake_amount >= market.min_stake` (else `StakeTooLow`)
-/// 7. `stake_amount <= market.max_stake` (else `StakeTooHigh`)
-/// 8. Predictor has not already submitted a prediction for this market (else `AlreadyPredicted`)
+/// 2. Market exists (else `MarketNotFound`)
+/// 3. `current_time < market.end_time` (else `MarketExpired`)
+/// 4. `chosen_outcome` is present in `market.outcome_options` (else `InvalidOutcome`)
+/// 5. `stake_amount >= market.min_stake` (else `StakeTooLow`)
+/// 6. `stake_amount <= market.max_stake` (else `StakeTooHigh`)
+/// 7. Predictor has not already submitted a prediction for this market (else `AlreadyPredicted`)
 ///
 /// On success:
 /// - XLM is locked in escrow via `escrow::lock_stake`.
@@ -186,29 +185,26 @@ pub fn submit_prediction(
     // ── Guard 1: platform not paused ─────────────────────────────────────────
     config::ensure_not_paused(env)?;
 
-    // ── Guard 2: predictor authorisation ─────────────────────────────────────
-    predictor.require_auth();
-
-    // ── Guard 3: market must exist ────────────────────────────────────────────
+    // ── Guard 2: market must exist ────────────────────────────────────────────
     let mut market: Market = env
         .storage()
         .persistent()
         .get(&DataKey::Market(market_id))
         .ok_or(InsightArenaError::MarketNotFound)?;
 
-    // ── Guard 4: market must not be expired ───────────────────────────────────
+    // ── Guard 3: market must not be expired ───────────────────────────────────
     let now = env.ledger().timestamp();
     if now >= market.end_time {
         return Err(InsightArenaError::MarketExpired);
     }
 
-    // ── Guard 5: chosen_outcome must be in outcome_options ───────────────────
+    // ── Guard 4: chosen_outcome must be in outcome_options ───────────────────
     let outcome_valid = market.outcome_options.iter().any(|o| o == chosen_outcome);
     if !outcome_valid {
         return Err(InsightArenaError::InvalidOutcome);
     }
 
-    // ── Guard 6 & 7: stake_amount must be within [min_stake, max_stake] ───────
+    // ── Guard 5 & 6: stake_amount must be within [min_stake, max_stake] ───────
     if stake_amount < market.min_stake {
         return Err(InsightArenaError::StakeTooLow);
     }
@@ -216,7 +212,7 @@ pub fn submit_prediction(
         return Err(InsightArenaError::StakeTooHigh);
     }
 
-    // ── Guard 8: user has not already predicted on this market ────────────────
+    // ── Guard 7: user has not already predicted on this market ────────────────
     let prediction_key = DataKey::Prediction(market_id, predictor.clone());
     if env.storage().persistent().has(&prediction_key) {
         return Err(InsightArenaError::AlreadyPredicted);
