@@ -1,6 +1,7 @@
 "use client";
 
 import RewardsWalletCard from "@/component/RewardsWalletCard";
+import NotificationsCard from "@/component/NotificationsCard";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -186,8 +187,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
           <div className="flex gap-6 p-6">
             <main className="flex-1">{children}</main>
 
-            <aside className="xl:block w-[300px]">
+            <aside className="xl:block w-[300px] space-y-6">
               <RewardsWalletCard />
+              <NotificationsCard />
             </aside>
           </div>
         </div>
