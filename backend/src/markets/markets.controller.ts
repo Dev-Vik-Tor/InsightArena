@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Body,
   Query,
@@ -24,6 +25,8 @@ import {
 } from './dto/list-markets.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
 
 @ApiTags('Markets')
@@ -84,5 +87,20 @@ export class MarketsController {
   @ApiResponse({ status: 404, description: 'Market not found' })
   async getMarketById(@Param('id') id: string): Promise<Market> {
     return this.marketsService.findByIdOrOnChainId(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.Admin)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel a prediction market' })
+  @ApiResponse({ status: 200, description: 'Market cancelled', type: Market })
+  @ApiResponse({ status: 404, description: 'Market not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Market cannot be cancelled (already resolved)',
+  })
+  @ApiResponse({ status: 502, description: 'Soroban contract call failed' })
+  async cancelMarket(@Param('id') id: string): Promise<Market> {
+    return this.marketsService.cancelMarket(id);
   }
 }

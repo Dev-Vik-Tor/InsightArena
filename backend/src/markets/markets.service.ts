@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadGatewayException,
   Logger,
+  ConflictException,
 } from '@nestjs/common';
 import { PredictionStatsDto } from './dto/prediction-stats.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -159,5 +160,47 @@ export class MarketsService {
     }
 
     return market;
+  }
+
+  /**
+   * Cancel a market: validate status, call Soroban contract, then update DB.
+   * Resolved markets cannot be cancelled.
+   */
+  async cancelMarket(id: string): Promise<Market> {
+    // Step 1: Find market and validate it can be cancelled
+    const market = await this.findByIdOrOnChainId(id);
+
+    if (market.is_resolved) {
+      throw new ConflictException('Resolved markets cannot be cancelled');
+    }
+
+    if (market.is_cancelled) {
+      throw new ConflictException('Market is already cancelled');
+    }
+
+    // Step 2: Call Soroban contract to cancel market on-chain
+    try {
+      // TODO: Replace with real SorobanService.cancelMarket() call
+      this.logger.log(
+        `Soroban cancelMarket called for market "${market.title}" (id: ${market.id})`,
+      );
+    } catch (err) {
+      this.logger.error('Soroban cancelMarket failed', err);
+      throw new BadGatewayException('Failed to cancel market on Soroban');
+    }
+
+    // Step 3: Update database
+    try {
+      market.is_cancelled = true;
+      return await this.marketsRepository.save(market);
+    } catch (err) {
+      this.logger.error(
+        'Failed to update market in DB after Soroban success',
+        err,
+      );
+      throw new BadGatewayException(
+        'Market cancelled on-chain but failed to update database',
+      );
+    }
   }
 }
