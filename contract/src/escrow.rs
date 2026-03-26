@@ -93,16 +93,27 @@ pub fn add_to_treasury_balance(env: &Env, fee_amount: i128) {
 ///
 /// Returns `0` if no fees have ever been collected. Never panics.
 pub fn get_treasury_balance(env: &Env) -> i128 {
+    // 1. Check if the key exists at all
+    if !env.storage().persistent().has(&DataKey::Treasury) {
+        // If it doesn't exist, the balance is effectively 0
+        // We return early to avoid calling get() or extend_ttl()
+        return 0;
+    }
+
+    // 2. Now it is safe to get the value
     let balance: i128 = env
         .storage()
         .persistent()
         .get(&DataKey::Treasury)
         .unwrap_or(0);
+
+    // 3. Now it is safe to extend the TTL
     env.storage().persistent().extend_ttl(
         &DataKey::Treasury,
         PERSISTENT_THRESHOLD,
         PERSISTENT_BUMP,
     );
+
     balance
 }
 
