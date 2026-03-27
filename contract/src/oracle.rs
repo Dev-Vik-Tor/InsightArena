@@ -3,6 +3,7 @@ use soroban_sdk::{Address, Env, Symbol};
 use crate::config;
 use crate::errors::InsightArenaError;
 use crate::market;
+use crate::reputation;
 use crate::storage_types::DataKey;
 
 /// Transition a market into the "resolved" state by recording the winning outcome.
@@ -72,6 +73,19 @@ pub fn resolve_market(
     // ── Emit MarketResolved event ─────────────────────────────────────────────
     market::emit_market_resolved(&env, market_id, resolved_outcome);
 
+    // ── Update creator reputation stats ──────────────────────────────────────
+    reputation::on_market_resolved(&env, &market.creator, market.participant_count);
+
+    Ok(())
+}
+
+pub fn update_oracle_from_governance(
+    env: &Env,
+    new_oracle: Address,
+) -> Result<(), InsightArenaError> {
+    let mut cfg = config::get_config(env)?;
+    cfg.oracle_address = new_oracle;
+    env.storage().persistent().set(&DataKey::Config, &cfg);
     Ok(())
 }
 

@@ -40,8 +40,46 @@ pub enum DataKey {
     Categories,
     /// Keyed by category symbol. Stores market IDs in creation order for that category.
     CategoryIndex(Symbol),
+    /// Keyed by proposal_id. Stores governance proposal metadata/state.
+    Proposal(u32),
+    /// Singleton counter. Tracks the total number of governance proposals.
+    ProposalCount,
+    /// Keyed by (proposal_id, voter). Tracks whether a voter has voted on a proposal.
+    ProposalVote(u32, Address),
     /// Temporary storage lock for escrow operations (prevents reentrancy)
     EscrowLock,
+    /// Keyed by creator address. Tracks market creation/resolution stats for reputation.
+    CreatorStats(Address),
+    /// Singleton. Tracks cumulative XLM volume staked across all predictions.
+    PlatformVolume,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MarketStats {
+    pub total_pool: i128,
+    pub participant_count: u32,
+    pub leading_outcome: Symbol,
+    pub leading_outcome_pool: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlatformStats {
+    pub total_markets: u64,
+    pub total_volume_xlm: i128,
+    pub active_users: u32,
+    pub treasury_balance: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorStats {
+    pub markets_created: u32,
+    pub markets_resolved: u32,
+    pub average_participant_count: u32,
+    pub dispute_count: u32,
+    pub reputation_score: u32,
 }
 
 #[contracttype]

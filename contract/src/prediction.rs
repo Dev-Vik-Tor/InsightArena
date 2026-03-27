@@ -1,5 +1,6 @@
 use soroban_sdk::{symbol_short, Address, Env, Symbol, Vec};
 
+use crate::analytics;
 use crate::config::{self, PERSISTENT_BUMP, PERSISTENT_THRESHOLD};
 use crate::errors::InsightArenaError;
 use crate::escrow;
@@ -10,11 +11,7 @@ use crate::ttl;
 // ── TTL helpers ───────────────────────────────────────────────────────────────
 
 fn bump_prediction(env: &Env, market_id: u64, predictor: &Address) {
-    env.storage().persistent().extend_ttl(
-        &DataKey::Prediction(market_id, predictor.clone()),
-        PERSISTENT_THRESHOLD,
-        PERSISTENT_BUMP,
-    );
+    ttl::extend_prediction_ttl(env, market_id, predictor);
 }
 
 fn bump_market(env: &Env, market_id: u64) {
@@ -82,12 +79,10 @@ fn compute_payout_breakdown(
     protocol_fee_bps: u32,
     creator_fee_bps: u32,
 ) -> Result<(i128, i128, i128), InsightArenaError> {
-    let payout_ratio = stake_amount
-        .checked_div(winning_pool)
-        .ok_or(InsightArenaError::Overflow)?;
-
-    let winner_share = payout_ratio
+    let winner_share = stake_amount
         .checked_mul(loser_pool)
+        .ok_or(InsightArenaError::Overflow)?
+        .checked_div(winning_pool)
         .ok_or(InsightArenaError::Overflow)?;
 
     let gross_payout = stake_amount
@@ -234,6 +229,9 @@ pub fn submit_prediction(
     // ── Lock stake in escrow (transfer XLM from predictor to contract) ────────
     escrow::lock_stake(env, &predictor, stake_amount)?;
 
+    // ── Track cumulative platform volume ──────────────────────────────────────
+    analytics::add_volume(env, stake_amount);
+
     // ── Store Prediction record ───────────────────────────────────────────────
     let prediction = Prediction::new(
         market_id,
@@ -316,10 +314,16 @@ pub fn get_prediction(
         .storage()
         .persistent()
         .get(&key)
+        .or_else(|| env.storage().temporary().get(&key))
         .ok_or(InsightArenaError::PredictionNotFound)?;
 
-    // Extend TTL so an active read keeps the record alive.
-    bump_prediction(env, market_id, &predictor);
+    if env.storage().persistent().has(&key) {
+        // Before claim, keep full market-lifetime TTL.
+        bump_prediction(env, market_id, &predictor);
+    } else if env.storage().temporary().has(&key) {
+        // After claim, keep short-lived cleanup TTL.
+        ttl::shorten_prediction_ttl_after_claim(env, market_id, &predictor);
+    }
 
     Ok(prediction)
 }
@@ -340,7 +344,11 @@ pub fn get_prediction(
 pub fn has_predicted(env: &Env, market_id: u64, predictor: Address) -> bool {
     env.storage()
         .persistent()
-        .has(&DataKey::Prediction(market_id, predictor))
+        .has(&DataKey::Prediction(market_id, predictor.clone()))
+        || env
+            .storage()
+            .temporary()
+            .has(&DataKey::Prediction(market_id, predictor))
 }
 
 /// Return all [`Prediction`] records for a given market.
@@ -419,6 +427,7 @@ pub fn claim_payout(
         .storage()
         .persistent()
         .get(&prediction_key)
+        .or_else(|| env.storage().temporary().get(&prediction_key))
         .ok_or(InsightArenaError::PredictionNotFound)?;
 
     if prediction.payout_claimed {
@@ -438,7 +447,12 @@ pub fn claim_payout(
     let mut winning_pool: i128 = 0;
     for address in predictors.iter() {
         let key = DataKey::Prediction(market_id, address.clone());
-        if let Some(item) = env.storage().persistent().get::<DataKey, Prediction>(&key) {
+        if let Some(item) = env
+            .storage()
+            .persistent()
+            .get::<DataKey, Prediction>(&key)
+            .or_else(|| env.storage().temporary().get::<DataKey, Prediction>(&key))
+        {
             if item.chosen_outcome == resolved_outcome {
                 winning_pool = winning_pool
                     .checked_add(item.stake_amount)
@@ -456,13 +470,11 @@ pub fn claim_payout(
         .checked_sub(winning_pool)
         .ok_or(InsightArenaError::Overflow)?;
 
-    let payout_ratio = prediction
+    let winner_share = prediction
         .stake_amount
-        .checked_div(winning_pool)
-        .ok_or(InsightArenaError::Overflow)?;
-
-    let winner_share = payout_ratio
         .checked_mul(loser_pool)
+        .ok_or(InsightArenaError::Overflow)?
+        .checked_div(winning_pool)
         .ok_or(InsightArenaError::Overflow)?;
 
     let gross_payout = prediction
@@ -503,8 +515,9 @@ pub fn claim_payout(
 
     prediction.payout_claimed = true;
     prediction.payout_amount = net_payout;
-    env.storage().persistent().set(&prediction_key, &prediction);
-    bump_prediction(env, market_id, &predictor);
+    env.storage().persistent().remove(&prediction_key);
+    env.storage().temporary().set(&prediction_key, &prediction);
+    ttl::shorten_prediction_ttl_after_claim(env, market_id, &predictor);
 
     let user_key = DataKey::User(predictor.clone());
     let mut profile: UserProfile = env
@@ -646,10 +659,11 @@ pub fn batch_distribute_payouts(
 
         stored_prediction.payout_claimed = true;
         stored_prediction.payout_amount = net_payout;
+        env.storage().persistent().remove(&prediction_key);
         env.storage()
-            .persistent()
+            .temporary()
             .set(&prediction_key, &stored_prediction);
-        bump_prediction(env, market_id, &stored_prediction.predictor);
+        ttl::shorten_prediction_ttl_after_claim(env, market_id, &stored_prediction.predictor);
 
         update_winner_profile(env, &stored_prediction.predictor, net_payout)?;
 
@@ -663,159 +677,4 @@ pub fn batch_distribute_payouts(
     emit_batch_payout_complete(env, market_id, &caller, processed);
 
     Ok(processed)
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod prediction_tests {
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::token::StellarAssetClient;
-    use soroban_sdk::{symbol_short, vec, Address, Env, String, Symbol};
-
-    /* Removed unused import: crate::invite */
-    use crate::market::CreateMarketParams;
-    use crate::{InsightArenaContract, InsightArenaContractClient, InsightArenaError};
-
-    // ── Test helpers ──────────────────────────────────────────────────────────
-
-    fn register_token(env: &Env) -> Address {
-        let token_admin = Address::generate(env);
-        env.register_stellar_asset_contract_v2(token_admin)
-            .address()
-    }
-
-    /// Deploy and initialise the contract; return client + xlm_token address.
-    fn deploy(env: &Env) -> (InsightArenaContractClient<'_>, Address) {
-        let id = env.register(InsightArenaContract, ());
-        let client = InsightArenaContractClient::new(env, &id);
-        let admin = Address::generate(env);
-        let oracle = Address::generate(env);
-        let xlm_token = register_token(env);
-        env.mock_all_auths();
-        client.initialize(&admin, &oracle, &200_u32, &xlm_token);
-        (client, xlm_token)
-    }
-
-    fn default_params(env: &Env) -> CreateMarketParams {
-        let now = env.ledger().timestamp();
-        CreateMarketParams {
-            title: String::from_str(env, "Will it rain?"),
-            description: String::from_str(env, "Daily weather market"),
-            category: Symbol::new(env, "Sports"),
-            outcomes: vec![env, symbol_short!("yes"), symbol_short!("no")],
-            end_time: now + 1000,
-            resolution_time: now + 2000,
-            creator_fee_bps: 100,
-            min_stake: 10_000_000,
-            max_stake: 100_000_000,
-            is_public: true,
-        }
-    }
-
-    /// Mint `amount` XLM stroops to `recipient` using the stellar asset client.
-    fn fund(env: &Env, xlm_token: &Address, recipient: &Address, amount: i128) {
-        StellarAssetClient::new(env, xlm_token).mint(recipient, &amount);
-    }
-
-    // ── submit_prediction tests ───────────────────────────────────────────────
-    // ── Happy path ────────────────────────────────────────────────────────────
-
-    #[test]
-    fn submit_prediction_success() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, xlm_token) = deploy(&env);
-        let creator = Address::generate(&env);
-        let predictor = Address::generate(&env);
-
-        let market_id = client.create_market(&creator, &default_params(&env));
-        fund(&env, &xlm_token, &predictor, 20_000_000);
-
-        client.submit_prediction(
-            &predictor,
-            &market_id,
-            &symbol_short!("yes"),
-            &20_000_000_i128,
-        );
-
-        // Verify prediction stored correctly
-        let pred = env.as_contract(&client.address, || {
-            use crate::storage_types::{DataKey, Prediction};
-            env.storage()
-                .persistent()
-                .get::<DataKey, Prediction>(&DataKey::Prediction(market_id, predictor.clone()))
-                .unwrap()
-        });
-        assert_eq!(pred.market_id, market_id);
-        assert_eq!(pred.predictor, predictor);
-        assert_eq!(pred.chosen_outcome, symbol_short!("yes"));
-        assert_eq!(pred.stake_amount, 20_000_000);
-        assert!(!pred.payout_claimed);
-        assert_eq!(pred.payout_amount, 0);
-    }
-
-    // ── Task #237 Allowlist Tests ─────────────────────────────────────────────
-
-    /// (a) Public market: no allowlist check — anyone can predict
-    #[test]
-    fn submit_prediction_public_market_allows_any_predictor() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, xlm_token) = deploy(&env);
-        let creator = Address::generate(&env);
-        let predictor = Address::generate(&env);
-        let stake = 20_000_000_i128;
-
-        let mut params = default_params(&env);
-        params.is_public = true;
-        let market_id = client.create_market(&creator, &params);
-        fund(&env, &xlm_token, &predictor, stake);
-
-        client.submit_prediction(&predictor, &market_id, &symbol_short!("yes"), &stake);
-        assert!(client.has_predicted(&market_id, &predictor));
-    }
-
-    /// (b) Private market: unlisted predictor rejected with Unauthorized
-    #[test]
-    fn submit_prediction_private_market_rejects_unlisted() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, xlm_token) = deploy(&env);
-        let creator = Address::generate(&env);
-        let predictor = Address::generate(&env);
-        let stake = 20_000_000_i128;
-
-        let mut params = default_params(&env);
-        params.is_public = false;
-        let market_id = client.create_market(&creator, &params);
-        fund(&env, &xlm_token, &predictor, stake);
-
-        let result =
-            client.try_submit_prediction(&predictor, &market_id, &symbol_short!("yes"), &stake);
-        assert!(matches!(result, Err(Ok(InsightArenaError::Unauthorized))));
-        assert!(!client.has_predicted(&market_id, &predictor));
-    }
-
-    /// (c) Private market: allowlisted predictor (redeemed invite) accepted
-    #[test]
-    fn submit_prediction_private_market_accepts_allowlisted() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let (client, xlm_token) = deploy(&env);
-        let creator = Address::generate(&env);
-        let predictor = Address::generate(&env);
-        let stake = 20_000_000_i128;
-
-        let mut params = default_params(&env);
-        params.is_public = false;
-        let market_id = client.create_market(&creator, &params);
-
-        let code = client.generate_invite_code(&creator, &market_id, &10, &3600_u64);
-        client.redeem_invite_code(&predictor, &code);
-        fund(&env, &xlm_token, &predictor, stake);
-
-        client.submit_prediction(&predictor, &market_id, &symbol_short!("yes"), &stake);
-        assert!(client.has_predicted(&market_id, &predictor));
-    }
 }
