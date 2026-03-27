@@ -2,6 +2,7 @@
 
 pub mod analytics;
 pub mod config;
+pub mod dispute;
 pub mod errors;
 pub mod escrow;
 pub mod governance;
@@ -186,6 +187,31 @@ impl InsightArenaContract {
         market::cancel_market(&env, caller, market_id)
     }
 
+    // ── Dispute ───────────────────────────────────────────────────────────────
+
+    /// File a dispute within the market's post-resolution dispute window.
+    /// Locks `bond` in escrow and stores a `Dispute(market_id)` record.
+    pub fn raise_dispute(
+        env: Env,
+        disputer: Address,
+        market_id: u64,
+        bond: i128,
+    ) -> Result<(), InsightArenaError> {
+        dispute::raise_dispute(env, disputer, market_id, bond)
+    }
+
+    /// Resolve an active dispute (admin-only).
+    /// - `uphold=true`: return bond to disputer and reopen market for re-resolution.
+    /// - `uphold=false`: forfeit bond to treasury accounting.
+    pub fn resolve_dispute(
+        env: Env,
+        admin: Address,
+        market_id: u64,
+        uphold: bool,
+    ) -> Result<(), InsightArenaError> {
+        dispute::resolve_dispute(env, admin, market_id, uphold)
+    }
+
     // ── Prediction ────────────────────────────────────────────────────────────
 
     /// Submit a prediction for an open market by staking XLM on a chosen outcome.
@@ -331,6 +357,15 @@ impl InsightArenaContract {
         code: Symbol,
     ) -> Result<u64, InsightArenaError> {
         invite::redeem_invite_code(env, invitee, code)
+    }
+
+    /// Revoke an invite code so it can no longer be redeemed.
+    pub fn revoke_invite_code(
+        env: Env,
+        creator: Address,
+        code: Symbol,
+    ) -> Result<(), InsightArenaError> {
+        invite::revoke_invite_code(env, creator, code)
     }
 
     /// List all season IDs which have snapshots available.
@@ -679,6 +714,9 @@ mod leaderboard_tests {
         assert!(matches!(result, Err(Ok(InsightArenaError::Paused))));
     }
 }
+
+#[cfg(test)]
+mod invite_tests;
 
 #[cfg(test)]
 mod prediction_tests;

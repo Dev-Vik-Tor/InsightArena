@@ -65,6 +65,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "dispute_window"
+                      },
+                      "val": {
+                        "u64": 86400
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "end_time"
                       },
                       "val": {
@@ -177,6 +185,14 @@
                       },
                       "val": {
                         "string": "desc"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "dispute_window"
+                      },
+                      "val": {
+                        "u64": 86400
                       }
                     },
                     {
@@ -798,6 +814,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "dispute_window"
+                      },
+                      "val": {
+                        "u64": 86400
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "end_time"
                       },
                       "val": {
@@ -896,6 +920,12 @@
                       "val": {
                         "u64": 2000
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "resolved_at"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
@@ -1010,6 +1040,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "dispute_window"
+                      },
+                      "val": {
+                        "u64": 86400
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "end_time"
                       },
                       "val": {
@@ -1108,6 +1146,12 @@
                       "val": {
                         "u64": 2000
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "resolved_at"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
