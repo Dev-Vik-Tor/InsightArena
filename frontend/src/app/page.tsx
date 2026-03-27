@@ -4,6 +4,7 @@ import Head from "next/head";
 import Header from "@/component/Header";
 import Footer from "@/component/Footer";
 import HeroSection from "@/component/Homepage/HeroSection";
+import FeaturedThisWeek from "@/component/Homepage/FeaturedThisWeek";
 
 import HowItWorksSection from "@/component/Homepage/HowItWorksSection";
 
@@ -70,6 +71,7 @@ export default function Home() {
         <div className="relative z-10">
           <Header />
           <HeroSection />
+          <FeaturedThisWeek />
           <ReputationSection />
           <Feature />
           <HowItWorksSection />
