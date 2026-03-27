@@ -103,8 +103,11 @@ describe('AuthService', () => {
 
     const result = await service.verifyChallenge(address, 'signed-hex');
 
-    expect(result).toEqual({ access_token: 'token.jwt.value', user: savedUser });
-    expect(jwtService.signAsync).toHaveBeenCalledWith({
+    expect(result).toEqual({
+      access_token: 'token.jwt.value',
+      user: savedUser,
+    });
+    expect(jwtService.signAsync.mock.calls[0][0]).toEqual({
       sub: 'u-2',
       stellar_address: address,
     });
@@ -188,11 +191,9 @@ describe('AuthService', () => {
   });
 
   it('verifyStellarSignature() returns false when sdk throws', () => {
-    jest
-      .spyOn(Keypair, 'fromPublicKey')
-      .mockImplementation(() => {
-        throw new Error('invalid key');
-      });
+    jest.spyOn(Keypair, 'fromPublicKey').mockImplementation(() => {
+      throw new Error('invalid key');
+    });
 
     const ok = service.verifyStellarSignature('bad-key', 'challenge', 'abcd');
 

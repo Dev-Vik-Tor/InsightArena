@@ -72,7 +72,7 @@ export class SorobanService {
     endTime: string,
     resolutionTime: string,
   ): Promise<SorobanCreateMarketResult> {
-    return this.withSorobanErrorHandling('createMarket', async () => {
+    return this.withSorobanErrorHandling('createMarket', () => {
       this.logger.log(
         `Soroban createMarket: title=${title} category=${category} outcomes=${outcomeOptions.length} end=${endTime} resolve=${resolutionTime}`,
       );
@@ -83,15 +83,16 @@ export class SorobanService {
         .padEnd(64, '0')
         .slice(0, 64);
 
-      return { market_id, tx_hash };
+      return Promise.resolve({ market_id, tx_hash });
     });
   }
 
   async resolveMarket(marketOnChainId: string, outcome: string): Promise<void> {
-    return this.withSorobanErrorHandling('resolveMarket', async () => {
+    return this.withSorobanErrorHandling('resolveMarket', () => {
       this.logger.log(
         `Soroban resolveMarket: market=${marketOnChainId} outcome=${outcome}`,
       );
+      return Promise.resolve();
     });
   }
 
@@ -107,7 +108,7 @@ export class SorobanService {
     chosenOutcome: string,
     stakeAmountStroops: string,
   ): Promise<SorobanPredictionResult> {
-    return this.withSorobanErrorHandling('submitPrediction', async () => {
+    return this.withSorobanErrorHandling('submitPrediction', () => {
       this.logger.log(
         `Soroban submitPrediction: user=${userStellarAddress} market=${marketOnChainId} outcome=${chosenOutcome} stake=${stakeAmountStroops}`,
       );
@@ -118,7 +119,7 @@ export class SorobanService {
         .toString('hex')
         .padEnd(64, '0')
         .slice(0, 64);
-      return { tx_hash: stub };
+      return Promise.resolve({ tx_hash: stub });
     });
   }
 

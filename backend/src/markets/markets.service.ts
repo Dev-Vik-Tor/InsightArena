@@ -134,7 +134,10 @@ export class MarketsService {
     }
 
     try {
-      await this.sorobanService.resolveMarket(market.on_chain_market_id, outcome);
+      await this.sorobanService.resolveMarket(
+        market.on_chain_market_id,
+        outcome,
+      );
     } catch (err) {
       this.logger.error('Soroban resolveMarket failed', err);
       throw new BadGatewayException('Failed to resolve market on Soroban');
