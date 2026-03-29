@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Github } from 'lucide-react';
 
 const SignUp: NextPage = () => {
@@ -48,7 +49,7 @@ const SignUp: NextPage = () => {
                 aria-label="Continue with Google"
                 className="flex items-center justify-center w-full py-2 px-4 bg-purple-800 text-white rounded-md hover:bg-purple-700 transition"
               >
-                <img src="/google-logo.svg" alt="Google" className="w-5 h-5 mr-2" />
+                <Image src="/google-logo.svg" alt="Google" width={20} height={20} className="mr-2" />
                 Google
               </button>
               <button
