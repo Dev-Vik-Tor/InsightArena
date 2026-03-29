@@ -67,3 +67,35 @@ pub fn calculate_swap_output(
 
 // TODO: get_pool_stats
 // TODO: get_lp_position
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::InsightArenaError;
+
+    #[test]
+    fn test_calculate_swap_output_zero_input_fails() {
+        // Should return InvalidInput error
+        let result = calculate_swap_output(0, 1000, 1000, 30);
+        assert_eq!(result, Err(InsightArenaError::InvalidInput));
+    }
+
+    #[test]
+    fn test_calculate_swap_output_zero_reserve_fails() {
+        // Should return InvalidInput error
+        let result_in = calculate_swap_output(100, 0, 1000, 30);
+        assert_eq!(result_in, Err(InsightArenaError::InvalidInput));
+
+        let result_out = calculate_swap_output(100, 1000, 0, 30);
+        assert_eq!(result_out, Err(InsightArenaError::InvalidInput));
+    }
+
+    #[test]
+    fn test_calculate_swap_output_overflow_protection() {
+        // Try: i128::MAX → Should return Overflow error
+        let result = calculate_swap_output(i128::MAX, 1000, 1000, 30);
+        assert_eq!(result, Err(InsightArenaError::Overflow));
+    }
+}
