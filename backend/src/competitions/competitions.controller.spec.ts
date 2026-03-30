@@ -131,7 +131,10 @@ describe('CompetitionsController', () => {
         .spyOn(service, 'getMyRank')
         .mockResolvedValue(mockRankResponse);
 
-      const result = await controller.getMyRank('comp-uuid-1', mockUser as User);
+      const result = await controller.getMyRank(
+        'comp-uuid-1',
+        mockUser as User,
+      );
 
       expect(spy).toHaveBeenCalledWith('comp-uuid-1', mockUser.id);
       expect(result).toEqual(mockRankResponse);

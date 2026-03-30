@@ -96,7 +96,7 @@ describe('AuthController', () => {
   });
 
   describe('verifyWallet', () => {
-    it('should return { verified: true } for a valid signature', async () => {
+    it('should return { verified: true } for a valid signature', () => {
       const dto = {
         stellar_address: 'G...Address',
         challenge: 'InsightArena:dispute:123',
@@ -104,7 +104,7 @@ describe('AuthController', () => {
       };
       authService.verifyStellarSignature.mockReturnValue(true);
 
-      const result = await controller.verifyWallet(dto);
+      const result = controller.verifyWallet(dto);
 
       expect(result).toEqual({ verified: true });
       expect(authService.verifyStellarSignature).toHaveBeenCalledWith(
@@ -114,7 +114,7 @@ describe('AuthController', () => {
       );
     });
 
-    it('should return { verified: false } for an invalid signature', async () => {
+    it('should return { verified: false } for an invalid signature', () => {
       const dto = {
         stellar_address: 'G...Address',
         challenge: 'InsightArena:dispute:123',
@@ -122,7 +122,7 @@ describe('AuthController', () => {
       };
       authService.verifyStellarSignature.mockReturnValue(false);
 
-      const result = await controller.verifyWallet(dto);
+      const result = controller.verifyWallet(dto);
 
       expect(result).toEqual({ verified: false });
     });

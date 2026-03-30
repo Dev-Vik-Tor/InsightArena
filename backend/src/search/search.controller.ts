@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
-import { GlobalSearchDto, GlobalSearchResponseDto } from './dto/global-search.dto';
+import {
+  GlobalSearchDto,
+  GlobalSearchResponseDto,
+} from './dto/global-search.dto';
 import { SearchService } from './search.service';
 
 @ApiTags('Search')

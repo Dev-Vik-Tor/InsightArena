@@ -36,7 +36,7 @@ import { User } from '../users/entities/user.entity';
 @ApiTags('Competitions')
 @Controller('competitions')
 export class CompetitionsController {
-  constructor(private readonly competitionsService: CompetitionsService) { }
+  constructor(private readonly competitionsService: CompetitionsService) {}
 
   @Post()
   @UseGuards(BanGuard)
@@ -105,7 +105,10 @@ export class CompetitionsController {
     description: 'User rank, score, and percentile',
     type: UserRankResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Competition or participant not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Competition or participant not found',
+  })
   async getMyRank(
     @Param('id') id: string,
     @CurrentUser() user: User,

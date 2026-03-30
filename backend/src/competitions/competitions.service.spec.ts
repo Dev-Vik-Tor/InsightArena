@@ -297,7 +297,9 @@ describe('CompetitionsService', () => {
       // Second call should hit cache
       await service.getMyRank('comp-uuid-1', 'user-uuid-1');
 
-      expect(mockParticipantsRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+      expect(
+        mockParticipantsRepository.createQueryBuilder,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 });

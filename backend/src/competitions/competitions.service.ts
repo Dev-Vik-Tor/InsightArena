@@ -33,7 +33,7 @@ export class CompetitionsService {
     private readonly competitionsRepository: Repository<Competition>,
     @InjectRepository(CompetitionParticipant)
     private readonly participantsRepository: Repository<CompetitionParticipant>,
-  ) { }
+  ) {}
 
   async create(dto: CreateCompetitionDto, user: User): Promise<Competition> {
     const inviteCode =

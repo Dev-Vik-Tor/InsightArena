@@ -10,7 +10,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 @Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('challenge')
   @HttpCode(HttpStatus.OK)
@@ -34,7 +34,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify wallet signature without session creation' })
   @ApiResponse({ status: 200, description: 'Verification result' })
-  async verifyWallet(@Body() dto: VerifyWalletDto) {
+  verifyWallet(@Body() dto: VerifyWalletDto) {
     const verified = this.authService.verifyStellarSignature(
       dto.stellar_address,
       dto.challenge,
