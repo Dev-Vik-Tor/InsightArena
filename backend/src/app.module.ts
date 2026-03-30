@@ -24,6 +24,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PredictionsModule } from './predictions/predictions.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { SorobanModule } from './soroban/soroban.module';
+import { SearchModule } from './search/search.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -79,6 +80,7 @@ import { UsersModule } from './users/users.module';
     SorobanModule,
     AdminModule,
     AchievementsModule,
+    SearchModule,
     CommonModule,
     AnalyticsModule,
   ],
